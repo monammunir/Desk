@@ -121,6 +121,59 @@
       cursor: pointer;
       border-radius: 4px;
     }
+
+    /* Preloader styling */
+    #preloader {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: #c0d4e1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.8s;
+    }
+    #preloader.fade-out {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+    .loader-content {
+      text-align: center;
+    }
+    .loader-spinner {
+      width: 50px;
+      height: 50px;
+      border: 3px solid rgba(0, 0, 0, 0.1);
+      border-top-color: #111;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 20px;
+    }
+    .loader-text {
+      font-size: 1.1rem;
+      font-weight: 400;
+      color: #111;
+      letter-spacing: 0.05em;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    /* Dark mode preloader */
+    body.dark-theme #preloader {
+      background-color: #182833;
+    }
+    body.dark-theme .loader-spinner {
+      border-color: rgba(255, 255, 255, 0.1);
+      border-top-color: #fff;
+    }
+    body.dark-theme .loader-text {
+      color: #fff;
+    }
   </style>
 
   <script type="importmap">
@@ -133,6 +186,14 @@
   </script>
 </head>
 <body>
+
+  <!-- Preloader HTML -->
+  <div id="preloader">
+    <div class="loader-content">
+      <div class="loader-spinner"></div>
+      <div class="loader-text">Loading Studio... <span id="loader-percent">0%</span></div>
+    </div>
+  </div>
 
   <canvas id="webgl-canvas"></canvas>
 
@@ -373,8 +434,24 @@
       }
     }
 
+    const loadingManager = new THREE.LoadingManager();
+    
+    loadingManager.onProgress = function (url, itemsLoaded, itemsTotal) {
+      const progress = Math.round((itemsLoaded / itemsTotal) * 100);
+      const percentEl = document.getElementById('loader-percent');
+      if (percentEl) percentEl.textContent = progress + '%';
+    };
+    
+    loadingManager.onLoad = function () {
+      const preloader = document.getElementById('preloader');
+      if (preloader) {
+        preloader.classList.add('fade-out');
+        setTimeout(() => preloader.remove(), 800);
+      }
+    };
+
     const interactiveObjects = [];
-    const gltfLoader = new GLTFLoader();
+    const gltfLoader = new GLTFLoader(loadingManager);
 
     // PERFECT BOTTOM-SURFACE SNAP & AUTO-SCALE HELPER
     function setupLoadedModel(gltfScene, name, containerGroup, position, targetSize = 1.0) {
@@ -427,27 +504,7 @@
 
     const DESK_SURFACE_Y = 0.80; // Top surface of desk
 
-    // --- 2. PROCEDURAL TURNTABLE ---
-    const recordGroup = new THREE.Group();
-    const recordBase = new THREE.Mesh(
-      new THREE.BoxGeometry(0.42, 0.08, 0.36),
-      new THREE.MeshStandardMaterial({ color: 0x333333 })
-    );
-    recordBase.position.set(-0.6, 0.82, 0.1);
-    recordBase.castShadow = true;
-    recordGroup.add(recordBase);
-
-    const vinylDisc = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.14, 0.14, 0.01, 24),
-      new THREE.MeshStandardMaterial({ color: 0x050505, roughness: 0.1 })
-    );
-    vinylDisc.position.set(-0.6, 0.865, 0.1);
-    recordGroup.add(vinylDisc);
-
-    recordGroup.name = 'turntable';
-    scene.add(recordGroup);
-    interactiveObjects.push(recordBase, vinylDisc);
-    let isRecordSpinning = false;
+    // (Turntable removed from here)
 
     // --- 3. PROCEDURAL SHORTER FLOOR LAMP ---
     const lampGroup = new THREE.Group();
@@ -667,10 +724,6 @@
           treeWiggleTimer = 1.0;
           playSound('rustle');
         }
-        else if (name === 'turntable') {
-          isRecordSpinning = !isRecordSpinning;
-          playSound('music');
-        }
         else if (name === 'monitor') {
           tvPowerState = true;
           tvPowerAnim = 0.01;
@@ -755,11 +808,6 @@
         plantGroup.rotation.z = Math.sin(clock.getElapsedTime() * 25) * 0.06 * treeWiggleTimer;
       } else {
         plantGroup.rotation.z = 0;
-      }
-
-      // 4. Record Player Spin
-      if (isRecordSpinning) {
-        vinylDisc.rotation.y += delta * 4.0;
       }
 
       // 5. Smooth Pencil Rolling & Flipping Animation
